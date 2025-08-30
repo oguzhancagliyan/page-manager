@@ -1,0 +1,12 @@
+global using Microsoft.Extensions.DependencyInjection;
+global using System.Diagnostics;
+global using FluentValidation;
+global using MediatR;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.Logging;
+global using PageManager.Domain.Entities;
+global using PageManager.Infrastructure.Cache;
+global using PageManager.Infrastructure.Persistence;
+global using PageManager.Shared.Cache.Keys;
+global using PageManager.Shared.Exceptions;
+global using ValidationException = FluentValidation.ValidationException;
