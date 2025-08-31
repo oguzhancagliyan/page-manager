@@ -1,5 +1,3 @@
-using OpenTelemetry.Trace;
-
 namespace PageManager.Application.Features.Pages.ArchiveAndMayPublishFeature;
 
 public class ArchiveAndMayPublishHandler
@@ -41,14 +39,16 @@ public class ArchiveAndMayPublishHandler
 
                     var page = await appContext.Pages
                         .Include(p => p.Published)
-                        .FirstOrDefaultAsync(a => a.SiteId == request.SiteId && a.Slug == request.Slug, cancellationToken);
+                        .FirstOrDefaultAsync(a => a.SiteId == request.SiteId && a.Slug == request.Slug,
+                            cancellationToken);
 
                     if (page is null)
                     {
                         activity?.SetStatus(ActivityStatusCode.Error, "PageNotFound");
                         activity?.AddEvent(new ActivityEvent("page_not_found"));
                         logger.LogError("Page not found. SiteId={SiteId}, Slug={Slug}", request.SiteId, request.Slug);
-                        throw new NotFoundException($"Page with slug '{request.Slug}' not found for site '{request.SiteId}'");
+                        throw new NotFoundException(
+                            $"Page with slug '{request.Slug}' not found for site '{request.SiteId}'");
                     }
 
                     activity?.SetTag("pageId", page.Id);
@@ -65,11 +65,18 @@ public class ArchiveAndMayPublishHandler
                     await appContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
                     activity?.AddEvent(new ActivityEvent("db.tx.commit"));
-
                     var cacheKey = CacheKeys.GetPublishedPagesKey(request.SiteId, request.Slug);
-                    cacheManager.Invalidate(cacheKey);
-                    activity?.AddEvent(new ActivityEvent("cache.invalidate"));
-                    activity?.SetStatus(ActivityStatusCode.Ok);
+                    try
+                    {
+                        cacheManager.Invalidate(cacheKey);
+                        activity?.AddEvent(new ActivityEvent("cache.invalidate"));
+                        activity?.SetStatus(ActivityStatusCode.Ok);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogWarning(e, "Cache invalidation failed for {Key}", cacheKey);
+                        activity?.AddEvent(new ActivityEvent("cache.invalidate.failed"));
+                    }
 
                     return;
                 }
@@ -78,7 +85,8 @@ public class ArchiveAndMayPublishHandler
                     activity?.SetStatus(ActivityStatusCode.Error, "DbUpdateConcurrencyException");
                     activity?.AddException(ex);
                     activity?.AddEvent(new ActivityEvent("concurrency_retry"));
-                    logger.LogWarning("Concurrency conflict on archive/publish. Attempt {Attempt}/{MaxAttempts}", attempt, MaxAttempts);
+                    logger.LogWarning("Concurrency conflict on archive/publish. Attempt {Attempt}/{MaxAttempts}",
+                        attempt, MaxAttempts);
                     appContext.ChangeTracker.Clear();
                     await Task.Delay(10, cancellationToken);
                 }
@@ -123,7 +131,8 @@ public class ArchiveAndMayPublishHandler
 
             if (page.Published is null)
             {
-                page.Published = new PagePublished { PageId = page.Id, DraftId = draft.Id, PublishedUtc = DateTime.UtcNow };
+                page.Published = new PagePublished
+                    { PageId = page.Id, DraftId = draft.Id, PublishedUtc = DateTime.UtcNow };
                 appContext.PagePublished.Add(page.Published);
                 activity?.AddEvent(new ActivityEvent("published_created"));
                 activity?.SetStatus(ActivityStatusCode.Ok);

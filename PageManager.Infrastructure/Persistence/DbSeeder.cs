@@ -44,7 +44,7 @@ public static class DbSeeder
             var slug = slugs[i];
             var pageId = DeterministicGuid.FromString($"page:{DemoSiteId}:{slug}");
 
-            var isArchived = i is 7 or 18; // örn. faq ve docs arşivlenmiş gösterelim
+            var isArchived = i is 7 or 18;
             var created = seedBaseUtc.AddDays(-(i + 1));
             var updated = created.AddHours(6 + (i % 5));
 
